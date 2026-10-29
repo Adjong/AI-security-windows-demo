@@ -83,25 +83,25 @@ resource "azurerm_windows_virtual_machine" "vm" {
 
 # Bootstrap: decode the PowerShell script (embedded, so no public-repo dependency)
 # to disk and run it with the chosen parameters, logging to C:\bootstrap.log.
-resource "azurerm_virtual_machine_extension" "bootstrap" {
-  name                       = "bootstrap"
-  virtual_machine_id         = azurerm_windows_virtual_machine.vm.id
-  publisher                  = "Microsoft.Compute"
-  type                       = "CustomScriptExtension"
-  type_handler_version       = "1.10"
-  auto_upgrade_minor_version = true
+# resource "azurerm_virtual_machine_extension" "bootstrap" {
+#  name                       = "bootstrap"
+#  virtual_machine_id         = azurerm_windows_virtual_machine.vm.id
+#  publisher                  = "Microsoft.Compute"
+#  type                       = "CustomScriptExtension"
+#  type_handler_version       = "1.10"
+#  auto_upgrade_minor_version = true
 
-  settings = jsonencode({
-    commandToExecute = join("", [
-      "powershell -ExecutionPolicy Bypass -NoProfile -Command \"",
-      "[IO.File]::WriteAllBytes('C:\\bootstrap.ps1',[Convert]::FromBase64String('",
-      base64encode(file("${path.module}/scripts/bootstrap.ps1")),
-      "')); ",
-      "powershell -ExecutionPolicy Bypass -File C:\\bootstrap.ps1 ",
-      "-Model '", var.ollama_model, "' ",
-      "-AppRepoUrl '", var.app_repo_url, "' ",
-      "-InstallVSCode '", tostring(var.install_vscode), "' ",
-      "*> C:\\bootstrap.log 2>&1\""
-    ])
-  })
-}
+#  settings = jsonencode({
+#    commandToExecute = join("", [
+#      "powershell -ExecutionPolicy Bypass -NoProfile -Command \"",
+#      "[IO.File]::WriteAllBytes('C:\\bootstrap.ps1',[Convert]::FromBase64String('",
+#      base64encode(file("${path.module}/scripts/bootstrap.ps1")),
+#      "')); ",
+#      "powershell -ExecutionPolicy Bypass -File C:\\bootstrap.ps1 ",
+#      "-Model '", var.ollama_model, "' ",
+#      "-AppRepoUrl '", var.app_repo_url, "' ",
+#      "-InstallVSCode '", tostring(var.install_vscode), "' ",
+#      "*> C:\\bootstrap.log 2>&1\""
+#    ])
+#  })
+3}
