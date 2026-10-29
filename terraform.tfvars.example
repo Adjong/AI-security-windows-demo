@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars and edit. Do NOT commit real secrets.
+resource_group_name = "RG_AI_Security_Demo" # existing RG; deployed into its region
+prefix              = "aisec-win"
+vm_size             = "Standard_D4s_v5" # GPU for a snappy demo: Standard_NC4as_T4_v3
+admin_username      = "azureuser"
+
+# 12-123 chars, 3 of {lower, upper, digit, symbol}. Prefer a TF_VAR env/HCP var.
+admin_password = "CHANGE-Me-Str0ng!2026"
+
+ollama_model   = "qwen2.5:7b" # "qwen2.5:3b" is much faster on CPU
+install_vscode = true
+
+# Set to THIS repo's clone URL (https://github.com/you/ai-sec-win-lab.git) to
+# auto-deploy the dashboard under /app. Leave empty to install prerequisites only.
+app_repo_url = ""

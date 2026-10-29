@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Security Lab — Straiker Demo</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#161c2b; --panel2:#1d2538; --line:#2a3447;
+    --fg:#e7ecf5; --muted:#93a0b8; --cyan:#35d0e0; --green:#44d07b; --red:#ff6b6b;
+    --amber:#ffb454; --accent:#7aa2ff;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f4f6fb; --panel:#ffffff; --panel2:#eef1f7; --line:#dce1ea;
+      --fg:#141a26; --muted:#5b6678; --cyan:#0b8fa3; --green:#1b9e55; --red:#d33;
+      --amber:#b26a00; --accent:#3762d6;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  header{display:flex;align-items:center;gap:14px;padding:12px 18px;
+    border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px}
+  .dots{display:flex;gap:12px;margin-left:auto;font-size:12px;color:var(--muted)}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#555;margin-right:5px;vertical-align:middle}
+  .dot.up{background:var(--green)} .dot.down{background:var(--red)}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 18px;
+    border-bottom:1px solid var(--line);background:var(--panel)}
+  select,input,button{font:inherit;color:var(--fg);background:var(--panel2);
+    border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+  input#task{flex:1;min-width:220px}
+  button{cursor:pointer;background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button.secondary{background:var(--panel2);color:var(--fg)}
+  button:disabled{opacity:.5;cursor:default}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:var(--panel2);color:var(--fg);border:0;border-radius:0;font-weight:600}
+  .seg button.active{background:var(--accent);color:#fff}
+  main{display:grid;grid-template-columns:1fr 360px;gap:14px;padding:14px 18px;align-items:start}
+  @media (max-width:900px){main{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 10px}
+  #stream{min-height:320px;max-height:62vh;overflow:auto}
+  .ev{padding:8px 10px;border-radius:8px;margin-bottom:8px;border:1px solid var(--line);background:var(--panel2)}
+  .ev .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .ev.step .tool{color:var(--cyan);font-weight:650}
+  .ev.result{white-space:pre-wrap;word-break:break-word}
+  .ev.final{border-color:var(--accent)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12.5px}
+  .verdict{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:7px 10px;border-radius:8px;font-weight:600}
+  .verdict .stage{font-size:11px;text-transform:uppercase;letter-spacing:.6px;opacity:.8;font-weight:600}
+  .v-clear{background:rgba(68,208,123,.12);border:1px solid var(--green);color:var(--green)}
+  .v-risk{background:rgba(255,107,107,.14);border:1px solid var(--red);color:var(--red)}
+  .v-info{background:rgba(122,162,255,.12);border:1px solid var(--accent);color:var(--accent)}
+  .v-off{background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
+  .hl{background:rgba(255,107,107,.22);color:var(--red);border-radius:3px;padding:0 2px;font-weight:600}
+  .tool-row{padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px}
+  .tool-row.poison{border-color:var(--red)}
+  .tool-row .name{font-weight:650;color:var(--cyan)}
+  .tool-row .desc{color:var(--muted);font-size:12px;white-space:pre-wrap;margin-top:3px;max-height:7.5em;overflow:auto}
+  .cap{padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:12px}
+  .cap.hit{border-color:var(--red)}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+  .pill.red{color:var(--red);border-color:var(--red)}
+  .muted{color:var(--muted)}
+  .task{color:var(--muted);font-size:12.5px;margin:2px 0 10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>AI Security Lab — Straiker Demo</h1>
+  <div class="dots">
+    <span><i class="dot" id="d-sink"></i>sink</span>
+    <span><i class="dot" id="d-crm"></i>crm</span>
+    <span><i class="dot" id="d-notes"></i>notes</span>
+  </div>
+</header>
+
+<div class="controls">
+  <label class="muted">Vantage</label>
+  <div class="seg" id="vantage">
+    <button data-v="agent" class="active">In-agent ①</button>
+    <button data-v="gateway">Gateway ②</button>
+  </div>
+  <label class="muted">Scenario</label>
+  <div class="seg" id="scenario">
+    <button data-s="A" class="active">A · Exfiltration</button>
+    <button data-s="B">B · Tool poisoning</button>
+  </div>
+  <button id="run">▶ Run</button>
+  <input id="task" placeholder="Free chat: type a task for the agent, then Run custom…">
+  <button id="runCustom" class="secondary">Run custom</button>
+</div>
+
+<main>
+  <section class="panel">
+    <h2>Run timeline</h2>
+    <div class="task" id="meta"></div>
+    <div id="stream"><div class="muted">Pick a vantage + scenario and hit Run, or type a task and Run custom.</div></div>
+  </section>
+  <aside>
+    <div class="panel" style="margin-bottom:14px">
+      <h2>Tools offered to the agent</h2>
+      <div id="tools"><div class="muted">—</div></div>
+    </div>
+    <div class="panel">
+      <h2>Capture-sink (exfiltration proof)</h2>
+      <div id="caps"><div class="muted">No captures yet.</div></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+let vantage="agent", scenario="A", running=false;
+
+document.querySelectorAll('#vantage button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#vantage button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); vantage=b.dataset.v;});
+document.querySelectorAll('#scenario button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#scenario button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); scenario=b.dataset.s;});
+
+$('#run').onclick = ()=>start(null);
+$('#runCustom').onclick = ()=>start($('#task').value.trim() || null);
+
+function esc(s){return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function hl(s){ // highlight SSNs and canaries
+  return esc(s)
+    .replace(/(LAB-CANARY-[A-Z0-9]{8,})/g,'<span class="hl">$1</span>')
+    .replace(/(\d{3}-\d{2}-\d{4})/g,'<span class="hl">$1</span>')
+    .replace(/(sk-live-[A-Za-z0-9]+)/g,'<span class="hl">$1</span>');
+}
+function add(html){const d=document.createElement('div');d.innerHTML=html;$('#stream').appendChild(d.firstElementChild);$('#stream').scrollTop=$('#stream').scrollHeight;}
+
+function verdict(v){
+  const stage=(v.stage||"").toUpperCase();
+  let cls="v-off", txt="monitoring off";
+  if(v.status==="no_api_key"){cls="v-info";txt="no API key — not sent to Straiker";}
+  else if(v.status==="unreachable"){cls="v-info";txt="Straiker unreachable (fail-open)";}
+  else if(v.status==="ok"){
+    if(v.blocked){cls="v-risk";txt="BLOCKED — "+(v.reason||"policy");}
+    else{
+      cls="v-clear";txt="Straiker: clear";
+      if(v.findings&&v.findings.length){cls="v-risk";txt="RISK — "+v.findings.join(", ");}
+      else if(v.controls){cls="v-risk";txt="RISK — "+v.controls;}
+      else if(v.canary_present){cls="v-clear";txt="Straiker: clear (sensitive data present on wire)";}
+    }
+  }
+  add(`<div class="verdict ${cls}"><span class="stage">${esc(stage)}</span><span>▸ ${esc(txt)}</span></div>`);
+}
+
+function onEvent(e){
+  if(e.type==="meta"){
+    $('#meta').innerHTML = `vantage <b>${esc(e.vantage)}</b> · scenario <b>${esc(e.scenario)}</b> · model <b>${esc(e.model)}</b> · Straiker mode <b>${esc(e.straiker_mode)}</b><br>task: ${esc(e.task)}`;
+  }
+  else if(e.type==="tools"){
+    $('#tools').innerHTML = e.tools.map(t=>{
+      const poison = /SYSTEM DIRECTIVE/.test(t.description);
+      return `<div class="tool-row ${poison?'poison':''}"><span class="name">${esc(t.name)}</span> ${poison?'<span class="pill red">poisoned description</span>':''}<div class="desc">${esc(t.description)}</div></div>`;
+    }).join("") || '<div class="muted">—</div>';
+  }
+  else if(e.type==="verdict"){ verdict(e); }
+  else if(e.type==="step"){
+    add(`<div class="ev step"><span class="lbl">step ${e.n} · tool call</span><div class="mono"><span class="tool">${esc(e.tool)}</span>(${esc(JSON.stringify(e.args))})</div></div>`);
+  }
+  else if(e.type==="result"){
+    add(`<div class="ev result"><span class="lbl">result · ${esc(e.tool)}</span><div class="mono">${hl(e.text)}</div></div>`);
+  }
+  else if(e.type==="final"){
+    add(`<div class="ev final"><span class="lbl">agent final answer</span><div>${hl(e.text)}</div></div>`);
+  }
+  else if(e.type==="blocked"){
+    add(`<div class="verdict v-risk"><span class="stage">${esc(e.stage)}</span><span>■ BLOCKED by Straiker — ${esc(e.reason)}</span></div>`);
+  }
+  else if(e.type==="captures"){
+    const items=e.items||[];
+    $('#caps').innerHTML = items.length? items.map(c=>{
+      const hit=(c.canaries_found||[]).length>0;
+      return `<div class="cap ${hit?'hit':''}">${hit?'<span class="pill red">canary exfiltrated</span> ':''}<span class="muted">${esc(c.path)}</span><div class="mono">${hl(c.body)}</div></div>`;
+    }).join("") : '<div class="muted">No captures — nothing reached the sink.</div>';
+  }
+  else if(e.type==="done"){ running=false; $('#run').disabled=false; $('#runCustom').disabled=false; }
+  else if(e.type==="error"){ add(`<div class="verdict v-risk"><span>error — ${esc(e.message)}</span></div>`); running=false; $('#run').disabled=false; $('#runCustom').disabled=false; }
+}
+
+function start(task){
+  if(running) return;
+  running=true; $('#run').disabled=true; $('#runCustom').disabled=true;
+  $('#stream').innerHTML=""; $('#caps').innerHTML='<div class="muted">running…</div>';
+  const proto = location.protocol==="https:"?"wss":"ws";
+  const ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen = ()=> ws.send(JSON.stringify({vantage, scenario, task}));
+  ws.onmessage = ev => onEvent(JSON.parse(ev.data));
+  ws.onerror = ()=> onEvent({type:"error",message:"websocket error"});
+  ws.onclose = ()=>{ if(running){running=false;$('#run').disabled=false;$('#runCustom').disabled=false;} };
+}
+
+async function health(){
+  try{
+    const h = await (await fetch('/health')).json();
+    for(const k of ['sink','crm','notes']){
+      const el=$('#d-'+k); el.className='dot '+(h[k]?'up':'down');
+    }
+  }catch(_){}
+}
+setInterval(health, 3000); health();
+</script>
+</body>
+</html>
