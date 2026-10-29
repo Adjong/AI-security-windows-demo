@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent — MCP Lab</title>
+<style>
+  :root{--bg:#0f1420;--panel:#161c2b;--panel2:#1d2538;--line:#2a3447;--fg:#e7ecf5;
+    --muted:#93a0b8;--cyan:#35d0e0;--green:#44d07b;--red:#ff6b6b;--accent:#7aa2ff;}
+  @media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+    --bg:#f4f6fb;--panel:#fff;--panel2:#eef1f7;--line:#dce1ea;--fg:#141a26;
+    --muted:#5b6678;--cyan:#0b8fa3;--green:#1b9e55;--red:#d33;--accent:#3762d6;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+  header{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:15px;margin:0;font-weight:650}
+  .dots{display:flex;gap:12px;margin-left:auto;font-size:12px;color:var(--muted)}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#555;margin-right:5px}
+  .dot.up{background:var(--green)}.dot.down{background:var(--red)}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+  button{cursor:pointer;background:var(--accent);border:1px solid var(--accent);color:#fff;font-weight:650;border-radius:8px;padding:8px 14px;font:inherit}
+  button.sec{background:var(--panel2);color:var(--fg)}
+  button:disabled{opacity:.5;cursor:default}
+  select,input{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
+  input#task{flex:1;min-width:220px}
+  .hint{color:var(--muted);font-size:12px}
+  main{display:grid;grid-template-columns:1fr 340px;gap:14px;padding:14px 18px;align-items:start}
+  @media (max-width:900px){main{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 10px}
+  #stream{min-height:320px;max-height:62vh;overflow:auto}
+  .ev{padding:8px 10px;border-radius:8px;margin-bottom:8px;border:1px solid var(--line);background:var(--panel2)}
+  .ev .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .ev.step .tool{color:var(--cyan);font-weight:650}
+  .ev.result{white-space:pre-wrap;word-break:break-word}
+  .ev.final{border-color:var(--accent)}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+  .hl{background:rgba(255,107,107,.22);color:var(--red);border-radius:3px;padding:0 2px}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;border:1px solid var(--red);color:var(--red)}
+  .cap{padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:12px}
+  .cap.hit{border-color:var(--red)}
+  .task{color:var(--muted);font-size:12.5px;margin:2px 0 10px}
+  .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Agent — MCP Lab <span class="hint">(no Straiker yet)</span></h1>
+  <div class="dots">
+    <span><i class="dot" id="d-ollama"></i>ollama</span>
+    <span><i class="dot" id="d-crm"></i>crm</span>
+    <span><i class="dot" id="d-notes"></i>notes</span>
+    <span><i class="dot" id="d-sink"></i>sink</span>
+  </div>
+</header>
+
+<div class="controls">
+  <button id="runA">▶ Scenario A · CRM (exfil)</button>
+  <button id="runB" class="sec">▶ Scenario B · Notes (poisoning)</button>
+  <span class="hint">|</span>
+  <select id="server"><option value="crm">crm</option><option value="notes">notes</option></select>
+  <input id="task" placeholder="Free task: tell the agent what to do, then Run custom…">
+  <button id="runCustom" class="sec">Run custom</button>
+</div>
+
+<main>
+  <section class="panel">
+    <h2>Agent run</h2>
+    <div class="task" id="meta"></div>
+    <div id="stream"><div class="muted">Pick a scenario or type a task, then Run. (Start the MCP control panel first so the servers are up.)</div></div>
+  </section>
+  <aside class="panel">
+    <h2>Capture-sink</h2>
+    <div id="caps"><div class="muted">No captures yet.</div></div>
+  </aside>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+let running=false;
+$('#runA').onclick=()=>start({scenario:'A'});
+$('#runB').onclick=()=>start({scenario:'B'});
+$('#runCustom').onclick=()=>start({server:$('#server').value, task:$('#task').value.trim()});
+
+function esc(s){return(s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function hl(s){return esc(s).replace(/(LAB-CANARY-[A-Z0-9]{8,})/g,'<span class="hl">$1</span>')
+  .replace(/(\d{3}-\d{2}-\d{4})/g,'<span class="hl">$1</span>')
+  .replace(/(sk-live-[A-Za-z0-9]+)/g,'<span class="hl">$1</span>');}
+function add(h){const d=document.createElement('div');d.innerHTML=h;$('#stream').appendChild(d.firstElementChild);$('#stream').scrollTop=$('#stream').scrollHeight;}
+
+function onEvent(e){
+  if(e.type==="meta"){ $('#meta').innerHTML=`server <b>${esc(e.server)}</b> · model <b>${esc(e.model)}</b><br>task: ${esc(e.task)}`; }
+  else if(e.type==="tools"){ if(e.poisoned) add('<div class="ev"><span class="pill">poisoned tool present</span></div>'); }
+  else if(e.type==="step"){ add(`<div class="ev step"><span class="lbl">step ${e.n} · tool call</span><div class="mono"><span class="tool">${esc(e.tool)}</span>(${esc(JSON.stringify(e.args))})</div></div>`); }
+  else if(e.type==="result"){ add(`<div class="ev result"><span class="lbl">result · ${esc(e.tool)}</span><div class="mono">${hl(e.text)}</div></div>`); }
+  else if(e.type==="final"){ add(`<div class="ev final"><span class="lbl">agent final answer</span><div>${hl(e.text)}</div></div>`); }
+  else if(e.type==="captures"){
+    const items=e.items||[];
+    $('#caps').innerHTML=items.length? items.map(c=>{
+      const hit=(c.canaries_found||[]).length>0;
+      return `<div class="cap ${hit?'hit':''}">${hit?'<span class="pill">canary</span> ':''}<span class="muted">${esc(c.path)}</span><div class="mono">${hl(c.body)}</div></div>`;
+    }).join('') : '<div class="muted">No captures — nothing reached the sink.</div>';
+  }
+  else if(e.type==="done"){ running=false; setButtons(false); }
+  else if(e.type==="error"){ add(`<div class="ev" style="border-color:var(--red)"><span class="lbl" style="color:var(--red)">error</span><div>${esc(e.message)}</div></div>`); running=false; setButtons(false); }
+}
+function setButtons(d){ $('#runA').disabled=d; $('#runB').disabled=d; $('#runCustom').disabled=d; }
+
+function start(payload){
+  if(running) return;
+  running=true; setButtons(true);
+  $('#stream').innerHTML=""; $('#caps').innerHTML='<div class="muted">running…</div>';
+  const proto=location.protocol==="https:"?"wss":"ws";
+  const ws=new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen=()=>ws.send(JSON.stringify(payload));
+  ws.onmessage=ev=>onEvent(JSON.parse(ev.data));
+  ws.onerror=()=>onEvent({type:"error",message:"websocket error"});
+  ws.onclose=()=>{ if(running){running=false;setButtons(false);} };
+}
+
+async function health(){
+  try{const h=await (await fetch('/health')).json();
+    for(const k of ['ollama','crm','notes','sink']) $('#d-'+k).className='dot '+(h[k]?'up':'down');
+  }catch(_){}
+}
+setInterval(health,3000); health();
+</script>
+</body>
+</html>
