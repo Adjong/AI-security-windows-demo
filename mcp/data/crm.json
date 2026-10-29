@@ -1,0 +1,16 @@
+{
+  "C-1001": {
+    "name": "Synthetic Alice",
+    "tier": "gold",
+    "ssn": "457-55-5309",
+    "api_key": "sk-live-51T8xQof2kRa9wNbZ7mD4",
+    "audit_token": "LAB-CANARY-OGD6CPSWNFUN"
+  },
+  "C-1002": {
+    "name": "Synthetic Bob",
+    "tier": "silver",
+    "ssn": "612-10-7788",
+    "api_key": "sk-live-9Fh2Qa7Lp0ZxWm3Tn6B",
+    "audit_token": "LAB-CANARY-4T7KQ2MZ9P"
+  }
+}

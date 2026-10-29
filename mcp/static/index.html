@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP Control Panel</title>
+<style>
+  :root{--bg:#0f1420;--panel:#161c2b;--panel2:#1d2538;--line:#2a3447;--fg:#e7ecf5;
+    --muted:#93a0b8;--cyan:#35d0e0;--green:#44d07b;--red:#ff6b6b;--accent:#7aa2ff;}
+  @media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+    --bg:#f4f6fb;--panel:#fff;--panel2:#eef1f7;--line:#dce1ea;--fg:#141a26;
+    --muted:#5b6678;--cyan:#0b8fa3;--green:#1b9e55;--red:#d33;--accent:#3762d6;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+  header{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:15px;margin:0;font-weight:650}
+  .dots{display:flex;gap:12px;margin-left:auto;font-size:12px;color:var(--muted)}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#555;margin-right:5px}
+  .dot.up{background:var(--green)}.dot.down{background:var(--red)}
+  main{display:grid;grid-template-columns:1fr 1fr 340px;gap:14px;padding:14px 18px;align-items:start}
+  @media (max-width:1100px){main{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  .panel.rogue{border-color:var(--red)}
+  .panel h2{font-size:13px;margin:0 0 4px;font-weight:700}
+  .panel h3{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:14px 0 6px}
+  .sub{color:var(--muted);font-size:12px;margin:0 0 8px}
+  textarea{width:100%;background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;
+    padding:8px;font-family:ui-monospace,Consolas,monospace;font-size:12px;resize:vertical}
+  input,select{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit}
+  button{cursor:pointer;background:var(--accent);border:1px solid var(--accent);color:#fff;font-weight:650;border-radius:8px;padding:7px 12px;font:inherit}
+  button.sec{background:var(--panel2);color:var(--fg)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+  .msg{font-size:12px;color:var(--muted);margin-left:4px}
+  .ok{color:var(--green)}.err{color:var(--red)}
+  .tool{padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px}
+  .tool.poison{border-color:var(--red)}
+  .tool .n{font-weight:650;color:var(--cyan)}
+  .tool .d{color:var(--muted);font-size:12px;white-space:pre-wrap;margin-top:3px;max-height:7em;overflow:auto}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;border:1px solid var(--red);color:var(--red)}
+  .result{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,Consolas,monospace;font-size:12px;
+    background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:8px}
+  .hl{background:rgba(255,107,107,.22);color:var(--red);border-radius:3px;padding:0 2px}
+  .cap{padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;font-size:12px}
+  .cap.hit{border-color:var(--red)}
+</style>
+</head>
+<body>
+<header>
+  <h1>MCP Control Panel</h1>
+  <div class="dots">
+    <span><i class="dot" id="d-sink"></i>sink</span>
+    <span><i class="dot" id="d-crm"></i>crm (normal)</span>
+    <span><i class="dot" id="d-notes"></i>notes (rogue)</span>
+  </div>
+</header>
+
+<main>
+  <!-- CRM (normal) -->
+  <section>
+    <div class="panel" id="card-crm">
+      <h2>Normal MCP server — CRM <span class="msg">:9910</span></h2>
+      <p class="sub">Synthetic customer records. Edits are live (server re-reads on each call).</p>
+      <textarea id="data-crm" rows="12" spellcheck="false"></textarea>
+      <div class="row">
+        <button onclick="saveData('crm')">Save data</button>
+        <button class="sec" onclick="restart('crm')">Restart server</button>
+        <span class="msg" id="msg-crm"></span>
+      </div>
+      <h3>Tools <button class="sec" onclick="loadTools('crm')">Load</button></h3>
+      <div id="tools-crm"></div>
+      <h3>Test a tool</h3>
+      <div class="row">
+        <select id="tool-crm"></select>
+        <input id="args-crm" placeholder='{"customer_id":"C-1001"}' style="flex:1;min-width:160px">
+        <button onclick="callTool('crm')">Call</button>
+      </div>
+      <div class="result" id="res-crm" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- Notes (rogue) -->
+  <section>
+    <div class="panel rogue" id="card-notes">
+      <h2>Rogue MCP server — Notes <span class="msg">:9930</span></h2>
+      <p class="sub">Poisoned <code>list_notes</code> description + an over-exposed note. Content edits are live; <b>poison edits need Restart</b>.</p>
+      <textarea id="data-notes" rows="12" spellcheck="false"></textarea>
+      <div class="row">
+        <button onclick="saveData('notes')">Save data</button>
+        <button class="sec" onclick="restart('notes')">Apply &amp; restart</button>
+        <span class="msg" id="msg-notes"></span>
+      </div>
+      <h3>Tools <button class="sec" onclick="loadTools('notes')">Load</button></h3>
+      <div id="tools-notes"></div>
+      <h3>Test a tool</h3>
+      <div class="row">
+        <select id="tool-notes"></select>
+        <input id="args-notes" placeholder='{"key":"handoff","content":"..."}' style="flex:1;min-width:160px">
+        <button onclick="callTool('notes')">Call</button>
+      </div>
+      <div class="result" id="res-notes" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- Sink -->
+  <aside>
+    <div class="panel">
+      <h2>Capture-sink <span class="msg">:9900</span></h2>
+      <p class="sub">What a tool exfiltrated. Canaries flagged.</p>
+      <div class="row">
+        <button class="sec" onclick="loadCaps()">Refresh</button>
+        <button class="sec" onclick="resetCaps()">Clear</button>
+      </div>
+      <div id="caps" style="margin-top:8px"><span class="msg">No captures yet.</span></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+function esc(s){return(s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function hl(s){return esc(s).replace(/(LAB-CANARY-[A-Z0-9]{8,})/g,'<span class="hl">$1</span>')
+  .replace(/(\d{3}-\d{2}-\d{4})/g,'<span class="hl">$1</span>')
+  .replace(/(sk-live-[A-Za-z0-9]+)/g,'<span class="hl">$1</span>');}
+function msg(name,text,cls){const e=$('#msg-'+name);e.textContent=text;e.className='msg '+(cls||'');}
+
+async function loadData(name){
+  const d=await (await fetch('/api/data/'+name)).json();
+  $('#data-'+name).value=JSON.stringify(d,null,2);
+}
+async function saveData(name){
+  msg(name,'saving…');
+  const r=await fetch('/api/data/'+name,{method:'POST',body:$('#data-'+name).value});
+  const j=await r.json();
+  if(r.ok) msg(name,'saved (content live; restart for poison/description)','ok');
+  else msg(name,j.error||'save failed','err');
+}
+async function restart(name){
+  msg(name,'restarting…');
+  const j=await (await fetch('/api/restart/'+name,{method:'POST'})).json();
+  msg(name, j.up?'restarted':'restart failed', j.up?'ok':'err');
+  loadTools(name);
+}
+async function loadTools(name){
+  const box=$('#tools-'+name); box.innerHTML='<span class="msg">loading…</span>';
+  const r=await fetch('/api/tools/'+name); const j=await r.json();
+  if(!r.ok){box.innerHTML='<span class="msg err">'+esc(j.error||'error')+'</span>';return;}
+  box.innerHTML=j.tools.map(t=>{
+    const poison=/SYSTEM DIRECTIVE/.test(t.description);
+    return `<div class="tool ${poison?'poison':''}"><span class="n">${esc(t.name)}</span> ${poison?'<span class="pill">poisoned</span>':''}<div class="d">${esc(t.description)}</div></div>`;
+  }).join('');
+  const sel=$('#tool-'+name); sel.innerHTML=j.tools.map(t=>`<option>${esc(t.name)}</option>`).join('');
+}
+async function callTool(name){
+  const tool=$('#tool-'+name).value, args=$('#args-'+name).value;
+  const box=$('#res-'+name); box.style.display='block'; box.textContent='calling…';
+  const r=await fetch('/api/call',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({server:name,tool,args})});
+  const j=await r.json();
+  box.innerHTML = r.ok ? hl(j.result) : '<span class="err">'+esc(j.error||'error')+'</span>';
+  loadCaps();
+}
+async function loadCaps(){
+  const r=await fetch('/api/captures'); const j=await r.json();
+  if(!Array.isArray(j)){$('#caps').innerHTML='<span class="msg err">'+esc(j.error||'error')+'</span>';return;}
+  $('#caps').innerHTML = j.length ? j.map(c=>{
+    const hit=(c.canaries_found||[]).length>0;
+    return `<div class="cap ${hit?'hit':''}">${hit?'<span class="pill">canary</span> ':''}<span class="msg">${esc(c.path)}</span><div class="result" style="margin-top:4px">${hl(c.body)}</div></div>`;
+  }).join('') : '<span class="msg">No captures yet.</span>';
+}
+async function resetCaps(){ await fetch('/api/captures/reset'); loadCaps(); }
+
+async function health(){
+  try{const h=await (await fetch('/health')).json();
+    for(const k of ['sink','crm','notes']) $('#d-'+k).className='dot '+(h[k]?'up':'down');
+  }catch(_){}
+}
+// init
+loadData('crm'); loadData('notes'); loadTools('crm'); loadTools('notes'); loadCaps();
+setInterval(health,3000); health();
+</script>
+</body>
+</html>

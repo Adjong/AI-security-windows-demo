@@ -1,0 +1,5 @@
+# Python runtime bits that should never be committed
+.venv/
+__pycache__/
+*.pyc
+.env

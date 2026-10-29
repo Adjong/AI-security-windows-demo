@@ -19,9 +19,16 @@ Function Install-supporting-apps {
     winget install --id 7zip.7zip -e
     }
 
+
+function Update-SessionPath {
+    $m = [Environment]::GetEnvironmentVariable('Path','Machine')
+    $u = [Environment]::GetEnvironmentVariable('Path','User')
+    $env:Path = "$m;$u"
+}
+
 Function Install-Python-Packages {
     #set PATH to Python
-    [Environment]::SetEnvironmentVariable("Path", ([Environment]::GetEnvironmentVariable("Path", "User") + ";C:\Users\azureuser\AppData\Local\Programs\Python;C:\Users\azureuser\AppData\Local\Programs\Python\Scripts"), "User")
+    #[Environment]::SetEnvironmentVariable("Path", ([Environment]::GetEnvironmentVariable("Path", "User") + ";C:\Users\azureuser\AppData\Local\Programs\Python;C:\Users\azureuser\AppData\Local\Programs\Python\Scripts"), "User")
     python -m pip install --upgrade pip
     python -m pip install "fastapi>=0.110,<1"
     python -m pip install "uvicorn[standard]>=0.29,<1" 
@@ -43,6 +50,8 @@ Function Install-Browsers {
 Install-Winget
 # Install prerequisites
 Install-supporting-apps
+# Set path to Python & Ollama
+update-Sessionpath
 # Install Pyhton packages
 Install-Python-Packages
 # Install Ollama model
