@@ -104,4 +104,4 @@ resource "azurerm_windows_virtual_machine" "vm" {
 #      "*> C:\\bootstrap.log 2>&1\""
 #    ])
 #  })
-3}
+# }
