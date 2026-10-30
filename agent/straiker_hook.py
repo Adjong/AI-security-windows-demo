@@ -9,10 +9,22 @@ gateway so agent-monitored (1) and gateway-monitored (2) are separate sources.
 """
 import os
 import json
+import ssl
 import uuid
 import datetime
 import urllib.request
 import urllib.error
+
+# Corporate networks often do TLS inspection (re-sign HTTPS with a corporate root
+# CA). That CA is in the Windows store but not in Python's bundled CA list, so a
+# plain Python HTTPS call fails with CERTIFICATE_VERIFY_FAILED. truststore makes
+# Python validate against the OS (Windows) trust store, where the corporate CA
+# lives -- the correct fix, without disabling verification.
+try:
+    import truststore
+    _SSL_CTX = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+except Exception:  # noqa: BLE001  # truststore not installed -> fall back to default
+    _SSL_CTX = ssl.create_default_context()
 
 
 def _load_dotenv():
@@ -206,7 +218,7 @@ def _call_straiker(stage, payload):
     if VERBOSE:
         _log("request", {"url": url, "body": body})
     req = urllib.request.Request(url, data=data, headers=_headers(), method="POST")
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+    with urllib.request.urlopen(req, timeout=TIMEOUT, context=_SSL_CTX) as resp:
         raw = resp.read().decode("utf-8")
     parsed = json.loads(raw) if raw else {}
     if VERBOSE:
