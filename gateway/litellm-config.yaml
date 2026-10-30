@@ -1,0 +1,18 @@
+# LiteLLM gateway config for the lab.
+# OpenAI-compatible proxy in front of local Ollama. The custom logger records
+# every request/response to gateway-traffic.jsonl so the monitor can show it.
+# NOTE: no Straiker guardrail yet -- that gets added in the next step.
+
+model_list:
+  - model_name: lab-model
+    litellm_params:
+      model: ollama_chat/qwen2.5:7b
+      api_base: http://127.0.0.1:11434
+
+general_settings:
+  master_key: sk-lab-master
+
+litellm_settings:
+  drop_params: true
+  # Custom logger (gateway_logger.py in this folder) captures traffic for the monitor.
+  callbacks: gateway_logger.proxy_handler_instance

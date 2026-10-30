@@ -46,6 +46,29 @@ Function Install-Browsers {
     winget install --id Mozilla.Firefox -e
     }
 
+Function Install-Gateway {
+    param(
+        # Point this at where your repo's Code\gateway folder lives on the VM.
+        [string]$GatewayPath = "C:\data\AI-sec-demo\gateway"
+    )
+
+    if (-not (Test-Path $GatewayPath)) {
+        New-Item -ItemType Directory -Force -Path $GatewayPath | Out-Null
+    }
+
+    $venv = Join-Path $GatewayPath ".venv-gateway"
+    if (-not (Test-Path $venv)) {
+        Write-Host "Creating isolated gateway venv at $venv ..." -ForegroundColor Yellow
+        python -m venv $venv
+    }
+
+    # Use the venv's own python so these land ONLY in .venv-gateway
+    $vpy = Join-Path $venv "Scripts\python.exe"
+    & $vpy -m pip install --upgrade pip
+    & $vpy -m pip install "litellm[proxy]>=1.60,<2" "fastapi>=0.110,<1" "uvicorn[standard]>=0.29,<1"
+    Write-Host "Gateway venv ready: $venv" -ForegroundColor Green
+}
+
 # Install winget
 Install-Winget
 # Install prerequisites
@@ -58,3 +81,6 @@ Install-Python-Packages
 Install-Ollama-model
 # Install browsers
 Install-Browsers
+# Install the light LLM gateway
+
+Install-Gateway -GatewayPath "C:\data\AI-sec-demo\gateway"

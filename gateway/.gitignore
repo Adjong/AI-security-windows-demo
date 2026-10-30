@@ -1,0 +1,6 @@
+.venv-gateway/
+.venv/
+__pycache__/
+*.pyc
+.env
+gateway-traffic.jsonl
