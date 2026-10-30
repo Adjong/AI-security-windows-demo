@@ -122,7 +122,8 @@ def index():
 def health():
     oh, op = OLLAMA_HOST.split(":")
     return {"gateway": _port_open("127.0.0.1", GATEWAY_PORT),
-            "ollama": _port_open(oh, int(op))}
+            "ollama": _port_open(oh, int(op)),
+            "straiker": bool(os.environ.get("STRAIKER_GATEWAY_API_KEY"))}
 
 
 @app.get("/api/traffic")

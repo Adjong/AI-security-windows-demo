@@ -43,10 +43,11 @@
 </head>
 <body>
 <header>
-  <h1>AI Gateway Monitor <span class="hint">LiteLLM :4000 · no Straiker yet</span></h1>
+  <h1>AI Gateway Monitor <span class="hint">LiteLLM :4000</span></h1>
   <div class="dots">
     <span><i class="dot" id="d-gateway"></i>gateway</span>
     <span><i class="dot" id="d-ollama"></i>ollama</span>
+    <span><i class="dot" id="d-straiker"></i>straiker</span>
   </div>
 </header>
 
@@ -118,7 +119,9 @@ $('#send').onclick=async()=>{
 };
 $('#reset').onclick=async()=>{ await fetch('/api/reset'); load(); };
 async function health(){ try{const h=await (await fetch('/health')).json();
-  $('#d-gateway').className='dot '+(h.gateway?'up':'down'); $('#d-ollama').className='dot '+(h.ollama?'up':'down'); }catch(_){}}
+  $('#d-gateway').className='dot '+(h.gateway?'up':'down');
+  $('#d-ollama').className='dot '+(h.ollama?'up':'down');
+  $('#d-straiker').className='dot '+(h.straiker?'up':'down'); }catch(_){}}
 setInterval(()=>{ if($('#auto').checked) load(); }, 2000);
 setInterval(health,3000); health(); load();
 </script>

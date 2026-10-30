@@ -1,4 +1,4 @@
-# AI Gateway + Monitor (no Straiker yet)
+# AI Gateway + Monitor (Straiker guardrail)
 
 The ② vantage: a **LiteLLM gateway** (OpenAI-compatible proxy in front of Ollama)
 plus a **web monitor** that shows every request/response flowing through it. The
