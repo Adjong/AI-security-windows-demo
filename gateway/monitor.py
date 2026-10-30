@@ -32,6 +32,30 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
 _proc = {}
 
 
+def _load_dotenv():
+    """Load keys into os.environ so the LiteLLM subprocess inherits them. Reads the
+    CENTRAL repo-root straiker.env first (shared by all components), then this
+    folder's local .env as a fallback/override. litellm-config.yaml reads
+    os.environ/STRAIKER_GATEWAY_API_KEY."""
+    repo_root = os.path.dirname(HERE)
+    for path in (os.path.join(repo_root, "straiker.env"), os.path.join(HERE, ".env")):
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, _, v = line.partition("=")
+                    k = k.strip()
+                    v = v.strip().strip('"').strip("'")
+                    if k and k not in os.environ:
+                        os.environ[k] = v
+        except OSError:
+            pass
+
+
 def _port_open(host, port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.4)
@@ -51,6 +75,11 @@ def _start_gateway():
     if _port_open("127.0.0.1", GATEWAY_PORT):
         print("[monitor] gateway already on 4000, reusing")
         return
+    _load_dotenv()
+    if not os.environ.get("STRAIKER_GATEWAY_API_KEY"):
+        print("[monitor] NOTE: STRAIKER_GATEWAY_API_KEY not set -- the guardrail will"
+              " fail open and not monitor. Add it to the central straiker.env at the"
+              " repo root (or Code\\gateway\\.env) to enable Straiker.")
     exe = os.path.join(os.path.dirname(PY), "litellm.exe")
     cmd = ([exe] if os.path.exists(exe) else ["litellm"]) + \
           ["--config", CONFIG, "--host", "127.0.0.1", "--port", str(GATEWAY_PORT)]

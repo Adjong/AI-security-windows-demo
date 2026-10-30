@@ -41,6 +41,9 @@
   .cap.hit{border-color:var(--red)}
   .task{color:var(--muted);font-size:12.5px;margin:2px 0 10px}
   .muted{color:var(--muted)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:var(--panel2);color:var(--fg);border:0;border-radius:0;font-weight:600;padding:8px 12px}
+  .seg button.active{background:var(--accent);color:#fff}
 </style>
 </head>
 <body>
@@ -48,6 +51,7 @@
   <h1>Agent — MCP Lab <span class="hint">(no Straiker yet)</span></h1>
   <div class="dots">
     <span><i class="dot" id="d-ollama"></i>ollama</span>
+    <span><i class="dot" id="d-gateway"></i>gateway</span>
     <span><i class="dot" id="d-crm"></i>crm</span>
     <span><i class="dot" id="d-notes"></i>notes</span>
     <span><i class="dot" id="d-sink"></i>sink</span>
@@ -55,6 +59,12 @@
 </header>
 
 <div class="controls">
+  <span class="hint">Backend</span>
+  <div class="seg" id="backend">
+    <button data-b="direct" class="active">Direct (Ollama)</button>
+    <button data-b="gateway">Gateway ②</button>
+  </div>
+  <span class="hint">|</span>
   <button id="runA">▶ Scenario A · CRM (exfil)</button>
   <button id="runB" class="sec">▶ Scenario B · Notes (poisoning)</button>
   <span class="hint">|</span>
@@ -77,10 +87,13 @@
 
 <script>
 const $=s=>document.querySelector(s);
-let running=false;
-$('#runA').onclick=()=>start({scenario:'A'});
-$('#runB').onclick=()=>start({scenario:'B'});
-$('#runCustom').onclick=()=>start({server:$('#server').value, task:$('#task').value.trim()});
+let running=false, backend='direct';
+document.querySelectorAll('#backend button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#backend button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); backend=b.dataset.b;});
+$('#runA').onclick=()=>start({scenario:'A',backend});
+$('#runB').onclick=()=>start({scenario:'B',backend});
+$('#runCustom').onclick=()=>start({server:$('#server').value, task:$('#task').value.trim(), backend});
 
 function esc(s){return(s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function hl(s){return esc(s).replace(/(LAB-CANARY-[A-Z0-9]{8,})/g,'<span class="hl">$1</span>')
@@ -89,7 +102,7 @@ function hl(s){return esc(s).replace(/(LAB-CANARY-[A-Z0-9]{8,})/g,'<span class="
 function add(h){const d=document.createElement('div');d.innerHTML=h;$('#stream').appendChild(d.firstElementChild);$('#stream').scrollTop=$('#stream').scrollHeight;}
 
 function onEvent(e){
-  if(e.type==="meta"){ $('#meta').innerHTML=`server <b>${esc(e.server)}</b> · model <b>${esc(e.model)}</b><br>task: ${esc(e.task)}`; }
+  if(e.type==="meta"){ $('#meta').innerHTML=`backend <b>${esc(e.backend)}</b> · server <b>${esc(e.server)}</b> · model <b>${esc(e.model)}</b>${e.backend==="gateway"?' · <span style="color:var(--accent)">monitored at gateway</span>':''}<br>task: ${esc(e.task)}`; }
   else if(e.type==="tools"){ if(e.poisoned) add('<div class="ev"><span class="pill">poisoned tool present</span></div>'); }
   else if(e.type==="step"){ add(`<div class="ev step"><span class="lbl">step ${e.n} · tool call</span><div class="mono"><span class="tool">${esc(e.tool)}</span>(${esc(JSON.stringify(e.args))})</div></div>`); }
   else if(e.type==="result"){ add(`<div class="ev result"><span class="lbl">result · ${esc(e.tool)}</span><div class="mono">${hl(e.text)}</div></div>`); }
@@ -120,7 +133,7 @@ function start(payload){
 
 async function health(){
   try{const h=await (await fetch('/health')).json();
-    for(const k of ['ollama','crm','notes','sink']) $('#d-'+k).className='dot '+(h[k]?'up':'down');
+    for(const k of ['ollama','gateway','crm','notes','sink']) $('#d-'+k).className='dot '+(h[k]?'up':'down');
   }catch(_){}
 }
 setInterval(health,3000); health();

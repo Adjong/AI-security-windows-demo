@@ -16,3 +16,16 @@ litellm_settings:
   drop_params: true
   # Custom logger (gateway_logger.py in this folder) captures traffic for the monitor.
   callbacks: gateway_logger.proxy_handler_instance
+
+# Straiker monitoring (vantage 2). The guardrail relays each turn to Straiker's
+# detect API. Whether it blocks or just observes is set by the application's mode
+# in the Straiker console; unreachable_fallback keeps the gateway serving if
+# Straiker can't be reached. Needs STRAIKER_API_KEY in the environment (.env).
+guardrails:
+  - guardrail_name: straiker
+    litellm_params:
+      guardrail: straiker
+      mode: [pre_call, post_call]
+      api_key: os.environ/STRAIKER_GATEWAY_API_KEY
+      api_base: https://api.prod.straiker.ai
+      unreachable_fallback: fail_open
