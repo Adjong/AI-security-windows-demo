@@ -14,11 +14,6 @@ app/.venv/
 *.pyc
 straiker_hook.log
 
-# Straiker keys (central) and any env files; keep the .example templates tracked
-straiker.env
-*.env
-!*.env.example
-
 # Python venvs and gateway traffic log
 .venv/
 .venv-gateway/
