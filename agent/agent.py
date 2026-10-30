@@ -29,6 +29,8 @@ try:
 except ImportError:
     from mcp.client.streamable_http import streamablehttp_client as http_client
 
+import straiker_hook as hook  # vantage 1: in-agent Straiker
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
 CRM_URL = os.environ.get("CRM_URL", "http://127.0.0.1:9910/mcp")
@@ -77,7 +79,8 @@ def health():
             "notes": _port_open("127.0.0.1", 9930),
             "sink": _port_open("127.0.0.1", 9900),
             "ollama": _port_open(oh, int(op)),
-            "gateway": _port_open("127.0.0.1", 4000)}
+            "gateway": _port_open("127.0.0.1", 4000),
+            "straiker": hook.has_key()}
 
 
 def _tools_schema(tools):
@@ -152,6 +155,12 @@ async def run(server, task, backend, emit):
                 await emit({"type": "tools", "poisoned": poisoned,
                             "tools": [{"name": t.name, "description": t.description or ""} for t in tools]})
 
+                mon = backend == "monitored"
+                if mon:
+                    hook.new_session()
+                    hook.set_tools(schema)
+                    await emit({"type": "verdict", **hook.inspect("input", task)})
+
                 messages = [{"role": "system", "content": SYSTEM},
                             {"role": "user", "content": task}]
                 for step in range(1, 7):
@@ -169,15 +178,30 @@ async def run(server, task, backend, emit):
                         content = m.content or ""
 
                     if not calls:
+                        if mon:
+                            await emit({"type": "verdict", **hook.inspect("output", content or "")})
                         await emit({"type": "final", "text": content or "(no content)"})
                         break
                     for c in calls:
                         name = c.function.name
                         args = _norm_args(c.function.arguments)
                         await emit({"type": "step", "n": step, "tool": name, "args": args})
+                        if mon:
+                            v = hook.inspect("tool_call", json.dumps({"tool": name, "args": args}))
+                            await emit({"type": "verdict", **v})
+                            if hook.MODE == "block" and v.get("blocked"):
+                                await emit({"type": "blocked", "stage": "tool_call", "reason": v.get("reason", "")})
+                                messages.append({"role": "tool", "name": name, "content": "blocked by Straiker Defend"})
+                                continue
                         result = await session.call_tool(name, args)
                         text = _result_text(result)
                         await emit({"type": "result", "tool": name, "text": text})
+                        if mon:
+                            vr = hook.inspect("tool_result", json.dumps({"tool": name, "result": text}))
+                            await emit({"type": "verdict", **vr})
+                            if hook.MODE == "block" and vr.get("blocked"):
+                                await emit({"type": "blocked", "stage": "tool_result", "reason": vr.get("reason", "")})
+                                text = "blocked by Straiker Defend"
                         if backend == "gateway":
                             messages.append({"role": "tool", "tool_call_id": c.id,
                                              "name": name, "content": text})

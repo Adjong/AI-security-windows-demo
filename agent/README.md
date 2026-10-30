@@ -1,9 +1,14 @@
 # Agent — MCP Lab (no Straiker yet)
 
-A web interface for an LLM agent (Ollama) that **connects to the two MCP servers
-the control panel is running**, decides which tools to call to carry out a task,
-and streams every step to the browser. No Straiker monitoring at this stage —
-this is just the agent driving the tools.
+A web interface for an LLM agent that **connects to the two MCP servers the
+control panel is running**, decides which tools to call to carry out a task, and
+streams every step to the browser. Pick the **backend** per run:
+
+- **Direct** — Ollama directly, no monitoring (baseline).
+- **Monitored ①** — Ollama directly, with the in-agent Straiker hook; verdicts
+  show inline per stage (uses `STRAIKER_AGENT_API_KEY` from the central `straiker.env`).
+- **Gateway ②** — routes through the LiteLLM gateway, so the gateway's Straiker
+  guardrail is what monitors it (verdicts in the gateway monitor / Straiker console).
 
 ## Prereqs / run order
 
@@ -38,8 +43,9 @@ The right panel shows the capture-sink after each run (canaries flagged).
 - **Is:** a real agent loop — Ollama chooses tools from the MCP server's schema,
   calls them over MCP, feeds results back, and answers. Temperature is pinned to
   0 so runs are repeatable.
-- **Isn't (yet):** monitored. There's no in-agent Straiker hook and no gateway.
-  The next step wires Straiker in so it flags the SSN / the poisoning.
+- **Monitored ①** adds the in-agent Straiker hook around that loop (input,
+  tool_call, tool_result, output) and shows each verdict inline. **Gateway ②**
+  leaves the agent unmonitored and lets the gateway's guardrail watch instead.
 
 ## Ports (all localhost)
 

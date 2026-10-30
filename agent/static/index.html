@@ -44,6 +44,12 @@
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .seg button{background:var(--panel2);color:var(--fg);border:0;border-radius:0;font-weight:600;padding:8px 12px}
   .seg button.active{background:var(--accent);color:#fff}
+  .verdict{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:7px 10px;border-radius:8px;font-weight:600}
+  .verdict .stage{font-size:11px;text-transform:uppercase;letter-spacing:.6px;opacity:.8}
+  .v-clear{background:rgba(68,208,123,.12);border:1px solid var(--green);color:var(--green)}
+  .v-risk{background:rgba(255,107,107,.14);border:1px solid var(--red);color:var(--red)}
+  .v-info{background:rgba(122,162,255,.12);border:1px solid var(--accent);color:var(--accent)}
+  .v-off{background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
 </style>
 </head>
 <body>
@@ -51,6 +57,7 @@
   <h1>Agent — MCP Lab <span class="hint">Direct = unmonitored · Gateway ② = monitored at the gateway</span></h1>
   <div class="dots">
     <span><i class="dot" id="d-ollama"></i>ollama</span>
+    <span><i class="dot" id="d-straiker"></i>straiker</span>
     <span><i class="dot" id="d-gateway"></i>gateway</span>
     <span><i class="dot" id="d-crm"></i>crm</span>
     <span><i class="dot" id="d-notes"></i>notes</span>
@@ -61,7 +68,8 @@
 <div class="controls">
   <span class="hint">Backend</span>
   <div class="seg" id="backend">
-    <button data-b="direct" class="active">Direct (Ollama)</button>
+    <button data-b="direct" class="active">Direct</button>
+    <button data-b="monitored">Monitored ①</button>
     <button data-b="gateway">Gateway ②</button>
   </div>
   <span class="hint">|</span>
@@ -104,6 +112,8 @@ function add(h){const d=document.createElement('div');d.innerHTML=h;$('#stream')
 function onEvent(e){
   if(e.type==="meta"){ $('#meta').innerHTML=`backend <b>${esc(e.backend)}</b> · server <b>${esc(e.server)}</b> · model <b>${esc(e.model)}</b>${e.backend==="gateway"?' · <span style="color:var(--accent)">monitored at gateway</span>':''}<br>task: ${esc(e.task)}`; }
   else if(e.type==="tools"){ if(e.poisoned) add('<div class="ev"><span class="pill">poisoned tool present</span></div>'); }
+  else if(e.type==="verdict"){ verdict(e); }
+  else if(e.type==="blocked"){ add(`<div class="verdict v-risk"><span class="stage">${esc(e.stage)}</span><span>■ BLOCKED by Straiker — ${esc(e.reason)}</span></div>`); }
   else if(e.type==="step"){ add(`<div class="ev step"><span class="lbl">step ${e.n} · tool call</span><div class="mono"><span class="tool">${esc(e.tool)}</span>(${esc(JSON.stringify(e.args))})</div></div>`); }
   else if(e.type==="result"){ add(`<div class="ev result"><span class="lbl">result · ${esc(e.tool)}</span><div class="mono">${hl(e.text)}</div></div>`); }
   else if(e.type==="final"){ add(`<div class="ev final"><span class="lbl">agent final answer</span><div>${hl(e.text)}</div></div>`); }
@@ -119,6 +129,21 @@ function onEvent(e){
 }
 function setButtons(d){ $('#runA').disabled=d; $('#runB').disabled=d; $('#runCustom').disabled=d; }
 
+function verdict(v){
+  const stage=(v.stage||"").toUpperCase();
+  let cls="v-off", txt="monitoring off";
+  if(v.status==="no_api_key"){cls="v-info";txt="no agent key — not sent to Straiker";}
+  else if(v.status==="unreachable"){cls="v-info";txt="Straiker unreachable (fail-open)";}
+  else if(v.status==="ok"){
+    if(v.blocked){cls="v-risk";txt="BLOCKED — "+(v.reason||"policy");}
+    else if(v.findings&&v.findings.length){cls="v-risk";txt="RISK — "+v.findings.join(", ");}
+    else if(v.controls){cls="v-risk";txt="RISK — "+v.controls;}
+    else if(v.canary_present){cls="v-clear";txt="Straiker: clear (sensitive data on wire)";}
+    else {cls="v-clear";txt="Straiker: clear";}
+  }
+  add(`<div class="verdict ${cls}"><span class="stage">${esc(stage)}</span><span>▸ ${esc(txt)}</span></div>`);
+}
+
 function start(payload){
   if(running) return;
   running=true; setButtons(true);
@@ -133,7 +158,7 @@ function start(payload){
 
 async function health(){
   try{const h=await (await fetch('/health')).json();
-    for(const k of ['ollama','gateway','crm','notes','sink']) $('#d-'+k).className='dot '+(h[k]?'up':'down');
+    for(const k of ['ollama','straiker','gateway','crm','notes','sink']) $('#d-'+k).className='dot '+(h[k]?'up':'down');
   }catch(_){}
 }
 setInterval(health,3000); health();
