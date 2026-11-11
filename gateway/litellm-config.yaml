@@ -1,7 +1,7 @@
-# LiteLLM gateway config for the lab.
-# OpenAI-compatible proxy in front of local Ollama. The custom logger records
-# every request/response to gateway-traffic.jsonl so the monitor can show it.
-# NOTE: no Straiker guardrail yet -- that gets added in the next step.
+# LiteLLM gateway config for the lab (vantage 2 -- gateway-side monitoring).
+# OpenAI-compatible proxy in front of local Ollama. A custom logger records every
+# request/response to gateway-traffic.jsonl, and the Straiker guardrail relays each
+# turn to Straiker's detect API.
 
 model_list:
   - model_name: lab-model
@@ -14,18 +14,39 @@ general_settings:
 
 litellm_settings:
   drop_params: true
-  # Custom logger (gateway_logger.py in this folder) captures traffic for the monitor.
   callbacks: gateway_logger.proxy_handler_instance
 
-# Straiker monitoring (vantage 2). The guardrail relays each turn to Straiker's
-# detect API. Whether it blocks or just observes is set by the application's mode
-# in the Straiker console; unreachable_fallback keeps the gateway serving if
-# Straiker can't be reached. Needs STRAIKER_API_KEY in the environment (.env).
+# Straiker monitoring (vantage 2).
+# Per the LiteLLM Straiker integration, pre_call and post_call are configured as
+# TWO separate guardrail entries -- NOT one entry with mode: [pre_call, post_call].
+#   - straiker-pre  inspects the INPUT (the task/prompt)
+#   - straiker-post inspects the OUTPUT (the model's answer -- where the SSN appears)
+# default_on: true makes them run on every request (the lab agent's plain OpenAI
+# client doesn't send a per-request guardrails list).
+# api_key has no env fallback in the guardrail, so it's resolved here from the
+# central straiker.env via os.environ/. Use a key from a Straiker "LiteLLM Gateway"
+# agent (Defend -> Add Agent -> LiteLLM Gateway -> Connect) so the traffic is
+# attributed to the gateway, separate from the in-agent application.
+# default_app names how this shows up in the Straiker console.
 guardrails:
-  - guardrail_name: straiker
+  - guardrail_name: straiker-pre
     litellm_params:
       guardrail: straiker
-      mode: [pre_call, post_call]
+      mode: pre_call
+      default_on: true
       api_key: os.environ/STRAIKER_GATEWAY_API_KEY
       api_base: https://api.prod.straiker.ai
+      default_app: Lab Gateway
       unreachable_fallback: fail_open
+      verbose: true
+
+  - guardrail_name: straiker-post
+    litellm_params:
+      guardrail: straiker
+      mode: post_call
+      default_on: true
+      api_key: os.environ/STRAIKER_GATEWAY_API_KEY
+      api_base: https://api.prod.straiker.ai
+      default_app: Lab Gateway
+      unreachable_fallback: fail_open
+      verbose: true
