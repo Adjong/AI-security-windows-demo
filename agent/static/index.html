@@ -21,7 +21,7 @@
   button{cursor:pointer;background:var(--accent);border:1px solid var(--accent);color:#fff;font-weight:650;border-radius:8px;padding:8px 14px;font:inherit}
   button.sec{background:var(--panel2);color:var(--fg)}
   button:disabled{opacity:.5;cursor:default}
-  /* Scenario buttons: compact A/B/C, with a clear highlight for the active one */
+  /* Scenario buttons: compact A/B/C/D, with a clear highlight for the active one */
   button.scn{background:var(--panel2);color:var(--fg);border:1px solid var(--line);min-width:46px;font-weight:700;text-align:center}
   button.scn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 3px rgba(122,162,255,.35)}
   select,input{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit}
@@ -80,6 +80,7 @@
   <button id="runA" class="scn" title="Scenario A · CRM (exfil)">A</button>
   <button id="runB" class="scn" title="Scenario B · Notes (poisoning)">B</button>
   <button id="runC" class="scn" title="Scenario C · Indirect injection">C</button>
+  <button id="runD" class="scn" title="Scenario D · Privileged action (command execution)">D</button>
   <span class="hint">|</span>
   <select id="server"><option value="crm">crm</option><option value="notes">notes</option></select>
   <input id="task" placeholder="Free task: tell the agent what to do, then Run custom…">
@@ -110,12 +111,14 @@ function setScenario(id){ scnBtns.forEach(x=>x.classList.toggle('active', id!==n
 $('#runA').onclick=()=>{ setScenario('A'); start({scenario:'A',backend}); };
 $('#runB').onclick=()=>{ setScenario('B'); start({scenario:'B',backend}); };
 $('#runC').onclick=()=>{ setScenario('C'); start({scenario:'C',backend}); };
+$('#runD').onclick=()=>{ setScenario('D'); start({scenario:'D',backend}); };
 $('#runCustom').onclick=()=>{ setScenario(null); start({server:$('#server').value, task:$('#task').value.trim(), backend}); };
 
 function esc(s){return(s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function hl(s){return esc(s).replace(/(LAB-CANARY-[A-Z0-9]{8,})/g,'<span class="hl">$1</span>')
   .replace(/(\d{3}-\d{2}-\d{4})/g,'<span class="hl">$1</span>')
-  .replace(/(sk-live-[A-Za-z0-9]+)/g,'<span class="hl">$1</span>');}
+  .replace(/(sk-live-[A-Za-z0-9]+)/g,'<span class="hl">$1</span>')
+  .replace(/(curl\s[^<\n]*|rm\s+-rf[^<\n]*)/g,'<span class="hl">$1</span>');}
 function add(h){const d=document.createElement('div');d.innerHTML=h;$('#stream').appendChild(d.firstElementChild);$('#stream').scrollTop=$('#stream').scrollHeight;}
 
 function onEvent(e){
@@ -123,7 +126,7 @@ function onEvent(e){
   else if(e.type==="tools"){ if(e.poisoned) add('<div class="ev"><span class="pill">poisoned tool present</span></div>'); }
   else if(e.type==="verdict"){ verdict(e); }
   else if(e.type==="blocked"){ add(`<div class="verdict v-risk"><span class="stage">${esc(e.stage)}</span><span>■ BLOCKED by Straiker — ${esc(e.reason)}</span></div>`); }
-  else if(e.type==="step"){ add(`<div class="ev step"><span class="lbl">step ${e.n} · tool call</span><div class="mono"><span class="tool">${esc(e.tool)}</span>(${esc(JSON.stringify(e.args))})</div></div>`); }
+  else if(e.type==="step"){ add(`<div class="ev step"><span class="lbl">step ${e.n} · tool call</span><div class="mono"><span class="tool">${esc(e.tool)}</span>(${hl(JSON.stringify(e.args))})</div></div>`); }
   else if(e.type==="result"){ add(`<div class="ev result"><span class="lbl">result · ${esc(e.tool)}</span><div class="mono">${hl(e.text)}</div></div>`); }
   else if(e.type==="final"){ add(`<div class="ev final"><span class="lbl">agent final answer</span><div>${hl(e.text)}</div></div>`); }
   else if(e.type==="captures"){
@@ -136,7 +139,7 @@ function onEvent(e){
   else if(e.type==="done"){ running=false; setButtons(false); }
   else if(e.type==="error"){ add(`<div class="ev" style="border-color:var(--red)"><span class="lbl" style="color:var(--red)">error</span><div>${esc(e.message)}</div></div>`); running=false; setButtons(false); }
 }
-function setButtons(d){ $('#runA').disabled=d; $('#runB').disabled=d; $('#runC').disabled=d; $('#runCustom').disabled=d; }
+function setButtons(d){ $('#runA').disabled=d; $('#runB').disabled=d; $('#runC').disabled=d; $('#runD').disabled=d; $('#runCustom').disabled=d; }
 
 function verdict(v){
   const stage=(v.stage||"").toUpperCase();
