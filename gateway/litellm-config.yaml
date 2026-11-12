@@ -14,20 +14,18 @@ general_settings:
 
 litellm_settings:
   drop_params: true
+  set_verbose: false            # quiet logs; run with LITELLM_LOG=ERROR in the env
   callbacks: gateway_logger.proxy_handler_instance
 
 # Straiker monitoring (vantage 2).
 # Per the LiteLLM Straiker integration, pre_call and post_call are configured as
 # TWO separate guardrail entries -- NOT one entry with mode: [pre_call, post_call].
 #   - straiker-pre  inspects the INPUT (the task/prompt)
-#   - straiker-post inspects the OUTPUT (the model's answer -- where the SSN appears)
+#   - straiker-post inspects the OUTPUT (the model's answer)
 # default_on: true makes them run on every request (the lab agent's plain OpenAI
 # client doesn't send a per-request guardrails list).
-# api_key has no env fallback in the guardrail, so it's resolved here from the
-# central straiker.env via os.environ/. Use a key from a Straiker "LiteLLM Gateway"
-# agent (Defend -> Add Agent -> LiteLLM Gateway -> Connect) so the traffic is
-# attributed to the gateway, separate from the in-agent application.
-# default_app names how this shows up in the Straiker console.
+# Use a key from a Straiker "LiteLLM Gateway" agent so the traffic is attributed
+# to the gateway, separate from the in-agent application.
 guardrails:
   - guardrail_name: straiker-pre
     litellm_params:
@@ -38,7 +36,6 @@ guardrails:
       api_base: https://api.prod.straiker.ai
       default_app: Lab Gateway
       unreachable_fallback: fail_open
-      verbose: true
 
   - guardrail_name: straiker-post
     litellm_params:
@@ -49,4 +46,3 @@ guardrails:
       api_base: https://api.prod.straiker.ai
       default_app: Lab Gateway
       unreachable_fallback: fail_open
-      verbose: true
