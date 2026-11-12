@@ -4,27 +4,38 @@ Straiker's /api/v3/detect and RETURNS the verdict (inspect) so the agent UI can
 show it inline. guard() enforces in block mode.
 
 Key: STRAIKER_AGENT_API_KEY (falls back to STRAIKER_API_KEY), read from the
-central straiker.env at the repo root. Use a DIFFERENT key/application than the
-gateway so agent-monitored (1) and gateway-monitored (2) are separate sources.
+central straiker.env at the repo root.
+
+v2: higher default timeout + automatic retries on transient failures (fixes the
+intermittent "Straiker unreachable - fail open"), and HTTP error bodies are now
+logged so a real API error is distinguishable from a network timeout.
+  STRAIKER_TIMEOUT (default 12s), STRAIKER_RETRIES (default 2).
 """
 import os
 import json
 import ssl
+import time
 import uuid
 import datetime
 import urllib.request
 import urllib.error
 
-# Corporate networks often do TLS inspection (re-sign HTTPS with a corporate root
-# CA). That CA is in the Windows store but not in Python's bundled CA list, so a
-# plain Python HTTPS call fails with CERTIFICATE_VERIFY_FAILED. truststore makes
-# Python validate against the OS (Windows) trust store, where the corporate CA
-# lives -- the correct fix, without disabling verification.
+# TLS trust: a fresh Windows Server can fail to build the cert chain for a normal
+# public endpoint (CERTIFICATE_VERIFY_FAILED). Verify against certifi (the Mozilla
+# CA bundle) -- the same source httpx/LiteLLM use. truststore (OS store) is tried
+# first in case a TLS-inspection proxy is ever in play. Verification stays ON.
+_SSL_CTX = None
 try:
     import truststore
     _SSL_CTX = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-except Exception:  # noqa: BLE001  # truststore not installed -> fall back to default
-    _SSL_CTX = ssl.create_default_context()
+except Exception:  # noqa: BLE001
+    _SSL_CTX = None
+if _SSL_CTX is None:
+    try:
+        import certifi
+        _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
+    except Exception:  # noqa: BLE001
+        _SSL_CTX = ssl.create_default_context()
 
 
 def _load_dotenv():
@@ -58,7 +69,8 @@ API_KEY = os.environ.get("STRAIKER_AGENT_API_KEY") or os.environ.get("STRAIKER_A
 API_BASE = os.environ.get("STRAIKER_API_BASE", "https://api.prod.straiker.ai").rstrip("/")
 AGENT_ID = os.environ.get("STRAIKER_AGENT_ID", "agent-monitored-1")
 MODEL = os.environ.get("STRAIKER_MODEL", os.environ.get("OLLAMA_MODEL", "qwen2.5:7b"))
-TIMEOUT = float(os.environ.get("STRAIKER_TIMEOUT", "8"))
+TIMEOUT = float(os.environ.get("STRAIKER_TIMEOUT", "12"))
+RETRIES = int(os.environ.get("STRAIKER_RETRIES", "2"))
 VERBOSE = os.environ.get("STRAIKER_VERBOSE", "") not in ("", "0", "false", "False")
 SESSION_ID = os.environ.get("STRAIKER_SESSION_ID") or ("lab-" + uuid.uuid4().hex[:16])
 
@@ -71,6 +83,10 @@ _LAST_INPUT = {"text": ""}
 _LAST_TOOLCALL = {"tool": "tool", "args": {}}
 _CALL_ID = "call_lab"
 _TOOLS = {"schema": None}
+
+
+class _StraikerError(Exception):
+    pass
 
 
 def set_tools(schema):
@@ -217,15 +233,32 @@ def _call_straiker(stage, payload):
     data = json.dumps(body).encode("utf-8")
     if VERBOSE:
         _log("request", {"url": url, "body": body})
-    req = urllib.request.Request(url, data=data, headers=_headers(), method="POST")
-    with urllib.request.urlopen(req, timeout=TIMEOUT, context=_SSL_CTX) as resp:
-        raw = resp.read().decode("utf-8")
-    parsed = json.loads(raw) if raw else {}
-    if VERBOSE:
-        _log("response", {"body": parsed})
-    if not isinstance(parsed, dict):
-        return False, "", "", []
-    return _decision(parsed)
+    last = "unknown error"
+    for attempt in range(RETRIES + 1):
+        req = urllib.request.Request(url, data=data, headers=_headers(), method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT, context=_SSL_CTX) as resp:
+                raw = resp.read().decode("utf-8")
+            parsed = json.loads(raw) if raw else {}
+            if VERBOSE:
+                _log("response", {"body": parsed})
+            if not isinstance(parsed, dict):
+                return False, "", "", []
+            return _decision(parsed)
+        except urllib.error.HTTPError as e:
+            try:
+                ebody = e.read().decode("utf-8", "replace")[:300]
+            except Exception:  # noqa: BLE001
+                ebody = ""
+            last = "HTTP %s: %s" % (e.code, ebody)
+            # 4xx (except 408/429) won't improve on retry
+            if 400 <= e.code < 500 and e.code not in (408, 429):
+                break
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:  # noqa: BLE001
+            last = type(e).__name__ + ": " + str(e)
+        if attempt < RETRIES:
+            time.sleep(0.6 * (attempt + 1))
+    raise _StraikerError(last)
 
 
 def inspect(stage, payload):
@@ -243,7 +276,7 @@ def inspect(stage, payload):
                        "findings": findings, "reason": reason if blocked else ""})
         _log(stage, {"straiker": "ok", "blocked": blocked, "controls": controls,
                      "findings": findings, "canary_present": result["canary_present"]})
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError, OSError) as e:
+    except Exception as e:  # noqa: BLE001  (fail-open on any error, after retries)
         result["status"] = "unreachable"
         result["error"] = type(e).__name__ + ": " + str(e)
         _log(stage, {"straiker": "unreachable", "error": result["error"]})
