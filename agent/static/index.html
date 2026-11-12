@@ -75,6 +75,7 @@
   <span class="hint">|</span>
   <button id="runA">▶ Scenario A · CRM (exfil)</button>
   <button id="runB" class="sec">▶ Scenario B · Notes (poisoning)</button>
+  <button id="runC" class="sec">▶ Scenario C · Indirect injection</button>
   <span class="hint">|</span>
   <select id="server"><option value="crm">crm</option><option value="notes">notes</option></select>
   <input id="task" placeholder="Free task: tell the agent what to do, then Run custom…">
@@ -101,6 +102,7 @@ document.querySelectorAll('#backend button').forEach(b=>b.onclick=()=>{
   b.classList.add('active'); backend=b.dataset.b;});
 $('#runA').onclick=()=>start({scenario:'A',backend});
 $('#runB').onclick=()=>start({scenario:'B',backend});
+$('#runC').onclick=()=>start({scenario:'C',backend});
 $('#runCustom').onclick=()=>start({server:$('#server').value, task:$('#task').value.trim(), backend});
 
 function esc(s){return(s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
@@ -127,7 +129,7 @@ function onEvent(e){
   else if(e.type==="done"){ running=false; setButtons(false); }
   else if(e.type==="error"){ add(`<div class="ev" style="border-color:var(--red)"><span class="lbl" style="color:var(--red)">error</span><div>${esc(e.message)}</div></div>`); running=false; setButtons(false); }
 }
-function setButtons(d){ $('#runA').disabled=d; $('#runB').disabled=d; $('#runCustom').disabled=d; }
+function setButtons(d){ $('#runA').disabled=d; $('#runB').disabled=d; $('#runC').disabled=d; $('#runCustom').disabled=d; }
 
 function verdict(v){
   const stage=(v.stage||"").toUpperCase();
