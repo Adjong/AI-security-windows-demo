@@ -29,7 +29,7 @@ import os
 import socket
 import urllib.request
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse
 
 from mcp import ClientSession
@@ -315,6 +315,61 @@ async def run(server, task, backend, emit, preload=None):
             return
         hint = " -- is the gateway running (:4000)?" if backend == "gateway" else " -- is the MCP control panel running?"
         await emit({"type": "error", "message": f"{type(u).__name__}: {u}{hint}"})
+
+
+# --- REST shim for external red-teamers (e.g. Straiker Ascend) --------------
+# Ascend sends a prompt and reads a reply; it does not speak the /ws event
+# stream. This endpoint runs the SAME agent loop and returns the final answer,
+# plus whether Straiker blocked it and the tool steps taken (for evidence).
+#
+#   POST /chat  { "message": "<attacker turn>",
+#                 "backend": "monitored" | "gateway" | "direct",   (default monitored)
+#                 "server":  "crm" | "notes",                      (default crm)
+#                 "scenario": "A".."E" }                            (optional; overrides message/server)
+#   -> { "reply": "...", "blocked": true/false, "block_reason": "...",
+#        "steps": [...], "flagged": [...], "backend": "...", "server": "..." }
+@app.post("/chat")
+async def chat(req: Request):
+    try:
+        data = await req.json()
+    except Exception:  # noqa: BLE001
+        data = {}
+    backend = data.get("backend", "monitored")
+    sc = data.get("scenario")
+    if sc in SCENARIOS:
+        s = SCENARIOS[sc]
+        server, task, preload = s["server"], s["task"], s.get("preload")
+    else:
+        server = data.get("server", "crm")
+        task = data.get("message") or data.get("task") or ""
+        preload = None
+
+    events = []
+
+    async def emit(ev):
+        events.append(ev)
+
+    await run(server, task, backend, emit, preload)
+
+    final = next((e.get("text") for e in reversed(events) if e.get("type") == "final"), None)
+    blocks = [e for e in events if e.get("type") == "blocked"]
+    flagged = [e for e in events if e.get("type") == "verdict" and e.get("blocked")]
+    errors = [e for e in events if e.get("type") == "error"]
+    reply = final
+    if reply is None:
+        reply = ("[blocked by Straiker] " + blocks[0].get("reason", "")) if blocks else (
+            errors[0].get("message", "") if errors else "")
+    return {
+        "reply": reply or "",
+        "blocked": bool(blocks),
+        "block_reason": blocks[0].get("reason", "") if blocks else "",
+        "block_stage": blocks[0].get("stage", "") if blocks else "",
+        "steps": [{"tool": e.get("tool"), "args": e.get("args")} for e in events if e.get("type") == "step"],
+        "flagged": [{"stage": e.get("stage"), "controls": e.get("controls"), "findings": e.get("findings")} for e in flagged],
+        "captures": next((e.get("items") for e in reversed(events) if e.get("type") == "captures"), []),
+        "backend": backend,
+        "server": server,
+    }
 
 
 @app.websocket("/ws")
