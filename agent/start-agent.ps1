@@ -7,4 +7,4 @@ $env:FASTMCP_LOG_LEVEL = "WARNING"
 
 Start-Job { Start-Sleep 4; Start-Process "http://127.0.0.1:8810" } | Out-Null
 Write-Host "Agent on http://127.0.0.1:8810  (Ctrl+C to stop)" -ForegroundColor Green
-python -m uvicorn agent:app --host 127.0.0.1 --port 8810 --log-level warning --no-access-log
+python -m uvicorn agent:app --host 0.0.0.0 --port 8810 --log-level warning --no-access-log
